@@ -3,12 +3,14 @@ import torchvision.transforms as transforms
 import cv2
 import pandas as pd
 import numpy as np
-from utils import Rescale, ToTensor
+from PIL import Image
 
 
 transform = transforms.Compose([
-    Rescale(256),
-    ToTensor(),
+    # transforms.ToPILImage(),
+    transforms.Resize((32, 32)),
+    transforms.ToTensor(),
+    transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
     # normalization
 ])
 
@@ -24,10 +26,10 @@ class HandDataset(torch.utils.data.Dataset):
         self.files = []
 
         for i, row in self.ground_truth.iterrows():
-            o = {}
-            o['img_path'] = self.root_dir + '/' + row[7]
-            o['img_class'] = self.get_class_idx(row[2], row[6])
-            self.files.append(o)
+            sample = {}
+            sample['img_path'] = self.root_dir + '/' + row[7]
+            sample['img_class'] = self.get_class_idx(row[2], row[6])
+            self.files.append(sample)
 
         self.transform = transform
 
@@ -37,17 +39,18 @@ class HandDataset(torch.utils.data.Dataset):
     def __getitem__(self, idx):
         img_path = self.files[idx]['img_path']
         img_class = self.files[idx]['img_class']
-        image = cv2.imread(img_path)
-        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        one_hot_vector = np.zeros((8,), dtype=int)
-        one_hot_vector[img_class] = 1
-
-        o = {'image': image, 'class': one_hot_vector}
+        image = Image.open(img_path).convert('RGB')
+        # image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        #one_hot_vector = np.zeros((8,), dtype=int)
+        # one_hot_vector[img_class] = 1
 
         if self.transform:
-            o = self.transform(o)
+            image = self.transform(image)
 
-        return o
+        # sample = {'image': image, 'class': torch.from_numpy(one_hot_vector)}
+        sample = {'image': image, 'class': img_class}
+
+        return sample
 
     def get_class_idx(self, gender, hand_aspect):
         split_aspects = hand_aspect.split()
