@@ -1,17 +1,13 @@
 import torch
 import torchvision.transforms as transforms
-import cv2
 import pandas as pd
-import numpy as np
 from PIL import Image
 
 
 transform = transforms.Compose([
-    # transforms.ToPILImage(),
-    transforms.Resize((32, 32)),
+    transforms.Resize((64, 64)),
     transforms.ToTensor(),
     transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
-    # normalization
 ])
 
 
@@ -41,7 +37,7 @@ class HandDataset(torch.utils.data.Dataset):
         img_class = self.files[idx]['img_class']
         image = Image.open(img_path).convert('RGB')
         # image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        #one_hot_vector = np.zeros((8,), dtype=int)
+        # one_hot_vector = np.zeros((8,), dtype=int)
         # one_hot_vector[img_class] = 1
 
         if self.transform:
