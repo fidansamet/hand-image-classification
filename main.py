@@ -45,8 +45,8 @@ def main():
 
     for epoch in range(EPOCH):
         train(net, train_loader, optimizer, epoch)
-        # if epoch % 5 = 0:
-        validate(net, validation_loader)
+        if epoch % 2 == 0:
+            validate(net, validation_loader)
         scheduler.step()
 
 
@@ -92,7 +92,7 @@ def train(net, train_loader, optimizer, epoch, running_loss = 0.0, examples = 0)
         # Print statistics
         running_loss += loss.data
         examples += BATCH_SIZE
-        print('[%d, %5d] loss: %.3f' % (epoch + 1, i + 1, running_loss / examples))
+        print('[%d, %5d] loss: %.7f' % (epoch + 1, i + 1, running_loss / examples))
 
         # if epoch%5 == 0:
 
@@ -111,11 +111,11 @@ def validate(net, validation_loader):
             pred = output.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
             correct += pred.eq(classes.view_as(pred)).sum().item()
 
-    test_loss /= len(validation_loader.dataset)
+    test_loss /= len(validation_loader.sampler.indices)
 
     print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
-        test_loss, correct, len(validation_loader.dataset),
-        100. * correct / len(validation_loader.dataset)))
+        test_loss, correct, len(validation_loader.sampler.indices),
+        100. * correct / len(validation_loader.sampler.indices)))
 
 
 if __name__ == '__main__':
