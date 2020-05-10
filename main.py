@@ -8,13 +8,7 @@ from torch import nn
 from dataset import HandDataset
 from network import device, Net
 import torch.nn.functional as F
-from torch.utils.tensorboard import SummaryWriter
 import matplotlib.pyplot as plt
-
-
-# default `log_dir` is "runs" - we'll be more specific here
-train_writer = SummaryWriter('runs/train/ADADELTA_batch=32_epoch=15_loss=nll_LR=1.0_train')
-val_writer = SummaryWriter('runs/test/ADADELTA_batch=32_epoch=15_loss=nll_LR=1.0_test')
 
 
 CSV_NAME = 'HandInfo.csv'
@@ -24,9 +18,12 @@ TEST = .2
 SHUFFLE = True
 BATCH_SIZE = 32
 RANDOM_SEED = 42
-EPOCH = 15
-LR = 1.0
-
+EPOCH = 11
+LR = 0.1
+val_loss_dict = {"x": [], "y": []}
+train_loss_dict = {"x": [], "y": []}
+val_acc_dict = {"x": [], "y": []}
+train_acc_dict = {"x": [], "y": []}
 
 def main():
     # BUILD DATASET
@@ -37,19 +34,6 @@ def main():
     # BUILD TRAIN-VALIDATION-TEST SUBSETS
     train_loader, validation_loader, test_loader = build_train_valid_test_subsets(dataset)
 
-    dataiter = iter(train_loader)
-    a = dataiter.next()
-    images, labels = a['image'], a['class']
-
-    # create grid of images
-    img_grid = torchvision.utils.make_grid(images)
-
-    # show images
-    matplotlib_imshow(img_grid, one_channel=True)
-
-    # write to tensorboard
-    # train_writer.add_image('four_fashion_mnist_images', img_grid)
-
     # CREATE NETWORK
     net = Net()
     net.cuda()
@@ -59,83 +43,71 @@ def main():
     # TRAIN AND VALIDATE
 
     criterion = nn.CrossEntropyLoss()
-    # optimizer = optim.SGD(net.parameters(), lr=0.001, momentum=0.9)
-    # optimizer = optim.Adam(net.parameters(), lr=0.0001) # 0.0001 - 0.001 - 0.01 - 0.1 - 0.00001
+    # optimizer = optim.SGD(net.parameters(), lr=LR, momentum=0.9)
+    # optimizer = optim.Adam(net.parameters(), lr=LR) # 0.0001 - 0.001 - 0.01 - 0.1 - 0.00001
     optimizer = optim.Adadelta(net.parameters(), lr=LR)  # 0.8 - 0.6 - 0.4
     scheduler = StepLR(optimizer, step_size=1, gamma=0.7)
 
     val_acc, val_loss, _ = test(net, validation_loader, 0)
     train_acc, train_loss, _ = test(net, train_loader, 0)
 
-    val_writer.add_scalar('loss', val_loss, 0)
-    train_writer.add_scalar('loss', train_loss, 0)
+    val_loss_dict['x'].append(0)
+    val_loss_dict['y'].append(val_loss)
+    train_loss_dict['x'].append(0)
+    train_loss_dict['y'].append(train_loss)
 
-    val_writer.add_scalar('acc', val_acc, 0)
-    train_writer.add_scalar('acc', train_acc, 0)
+    val_acc_dict['x'].append(0)
+    val_acc_dict['y'].append(val_acc)
+    train_acc_dict['x'].append(0)
+    train_acc_dict['y'].append(train_acc)
+
     for epoch in range(1, EPOCH):
         train(net, train_loader, optimizer, epoch)
 
         val_acc, val_loss, _ = test(net, validation_loader, epoch)
         train_acc, train_loss, _ = test(net, train_loader, epoch)
 
-        val_writer.add_scalar('loss', val_loss, epoch)
-        train_writer.add_scalar('loss', train_loss, epoch)
+        val_loss_dict['x'].append(epoch)
+        val_loss_dict['y'].append(val_loss)
+        train_loss_dict['x'].append(epoch)
+        train_loss_dict['y'].append(train_loss)
 
-        val_writer.add_scalar('acc', val_acc, epoch)
-        train_writer.add_scalar('acc', train_acc, epoch)
-
+        val_acc_dict['x'].append(epoch)
+        val_acc_dict['y'].append(val_acc)
+        train_acc_dict['x'].append(epoch)
+        train_acc_dict['y'].append(train_acc)
 
         scheduler.step()
 
     print('Finished Training')
 
+    plt.title("Optimizer=Adadelta " + "LR=%.1f" % LR)
+    plt.plot(val_loss_dict['x'], val_loss_dict['y'], label="Validation")
+    plt.plot(train_loss_dict['x'], train_loss_dict['y'], label="Train")
+    plt.xticks(np.arange(0, 11, 1))
+    plt.xlabel('Epoch')
+    plt.ylabel('Loss')
+    plt.legend()
+    plt.show()
 
+    plt.title("Optimizer=Adadelta " + "LR=%.1f" % LR)
+    plt.plot(val_acc_dict['x'], val_acc_dict['y'], label="Validation")
+    plt.plot(train_acc_dict['x'], train_acc_dict['y'], label="Train")
+    plt.xticks(np.arange(0, 11, 1))
+    plt.xlabel('Epoch')
+    plt.ylabel('Accuracy')
+    plt.legend()
+    plt.show()
 
-def matplotlib_imshow(img, one_channel=False):
-    if one_channel:
-        img = img.mean(dim=0)
-    img = img / 2 + 0.5     # unnormalize
-    npimg = img.cpu().clone().numpy()
-    if one_channel:
-        plt.imshow(npimg, cmap="Greys")
-    else:
-        plt.imshow(np.transpose(npimg, (1, 2, 0)))
+    list = [val_loss_dict, train_loss_dict, val_acc_dict, train_acc_dict]
 
+    with open('Optimizer=Adadelta_LR=0.1.txt', 'w') as f:
+        for item in list:
+            f.write("%s\n" % item)
 
-# helper functions
-
-def images_to_probs(net, images):
-    '''
-    Generates predictions and corresponding probabilities from a trained
-    network and a list of images
-    '''
-    output = net(images)
-    # convert output probabilities to predicted class
-    _, preds_tensor = torch.max(output, 1)
-    preds = np.squeeze(preds_tensor.cpu().clone().numpy())
-    return preds, [F.softmax(el, dim=0)[i].item() for i, el in zip(preds, output)]
-
-
-def plot_classes_preds(net, images, labels):
-    '''
-    Generates matplotlib Figure using a trained network, along with images
-    and labels from a batch, that shows the network's top prediction along
-    with its probability, alongside the actual label, coloring this
-    information based on whether the prediction was correct or not.
-    Uses the "images_to_probs" function.
-    '''
-    preds, probs = images_to_probs(net, images)
-    # plot the images in the batch, along with predicted and true labels
-    fig = plt.figure(figsize=(12, 48))
-    for idx in np.arange(4):
-        ax = fig.add_subplot(1, 4, idx+1, xticks=[], yticks=[])
-        matplotlib_imshow(images[idx], one_channel=True)
-        ax.set_title("{0}, {1:.1f}%\n(label: {2})".format(
-            HandDataset.CLASSES[preds[idx]],
-            probs[idx] * 100.0,
-            HandDataset.CLASSES[labels[idx]]),
-                    color=("green" if preds[idx]==labels[idx].item() else "red"))
-    return fig
+        f.write("BATCH_SIZE=%d\n" % BATCH_SIZE)
+        f.write("Loss=nll_loss\n")
+        f.write("Validation=%20 Test=%20\n")
 
 
 def build_train_valid_test_subsets(dataset):
@@ -183,9 +155,6 @@ def train(net, train_loader, optimizer, epoch, running_loss = 0.0, examples = 0)
         print('[%d, %5d] loss: %.7f' % (epoch + 1, i + 1, running_loss / examples))
 
 
-
-
-
 def test(net, validation_loader, epoch):
     net.eval()  # TODO
     test_loss = 0
@@ -206,10 +175,6 @@ def test(net, validation_loader, epoch):
         test_acc))
 
     return test_acc, test_loss, correct
-
-
-# def draw(running_loss, epoch):
-#     writer.add_scalar('training loss', running_loss, epoch)
 
 
 if __name__ == '__main__':
