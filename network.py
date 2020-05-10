@@ -3,24 +3,9 @@ import torch
 from torch import nn
 
 
-# Check cuda, if cuda gpu, not cpu
+# Check cuda, if cuda gpu, if not cpu
 use_cuda = torch.cuda.is_available()
 device = torch.device('cuda:0' if use_cuda else 'cpu')
-
-
-# class Net(nn.Module):
-#     def __init__(self):
-#         super(Net, self).__init__()
-#         self.fc1 = nn.Linear(32 ** 2 * 3, 128)
-#         self.fc2 = nn.Linear(128, 8)
-#
-#     def forward(self, x):
-#         x.cuda(device)
-#         x = x.view(-1, 32 ** 2 * 3)
-#         x = F.relu(self.fc1(x))
-#         x = self.fc2(x)
-#         x = F.log_softmax(x)
-#         return x
 
 
 class Net(nn.Module):

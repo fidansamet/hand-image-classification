@@ -2,10 +2,13 @@ import torch
 import torchvision.transforms as transforms
 import pandas as pd
 from PIL import Image
+import matplotlib.pyplot as plt
 
+
+IMG_SIZE = 64
 
 transform = transforms.Compose([
-    transforms.Resize((64, 64)),
+    transforms.Resize((IMG_SIZE, IMG_SIZE)),
     transforms.ToTensor(),
     transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
 ])
@@ -36,16 +39,12 @@ class HandDataset(torch.utils.data.Dataset):
         img_path = self.files[idx]['img_path']
         img_class = self.files[idx]['img_class']
         image = Image.open(img_path).convert('RGB')
-        # image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        # one_hot_vector = np.zeros((8,), dtype=int)
-        # one_hot_vector[img_class] = 1
 
         if self.transform:
             image = self.transform(image)
 
-        # sample = {'image': image, 'class': torch.from_numpy(one_hot_vector)}
+        # image.show()
         sample = {'image': image, 'class': img_class}
-
         return sample
 
     def get_class_idx(self, gender, hand_aspect):
