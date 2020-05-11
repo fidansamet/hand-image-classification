@@ -3,9 +3,11 @@ import torchvision.transforms as transforms
 import pandas as pd
 from PIL import Image
 import matplotlib.pyplot as plt
+import numpy as np
+from sklearn.metrics import confusion_matrix
 
 
-IMG_SIZE = 32   # 32 64 128 256
+IMG_SIZE = 64   # 128
 
 transform = transforms.Compose([
     transforms.Resize((IMG_SIZE, IMG_SIZE)),
@@ -43,7 +45,10 @@ class HandDataset(torch.utils.data.Dataset):
         if self.transform:
             image = self.transform(image)
 
-        # image.show()
+        # one_hot_vector = np.zeros((8,), dtype=np.float32)
+        # one_hot_vector[img_class] = 1
+        # sample = {'image': image, 'class': torch.from_numpy(one_hot_vector)}
+
         sample = {'image': image, 'class': img_class}
         return sample
 
@@ -52,3 +57,6 @@ class HandDataset(torch.utils.data.Dataset):
         split_aspects.insert(0, gender)
         class_name = '-'.join(split_aspects)
         return self.CLASSES.index(class_name)
+
+
+
