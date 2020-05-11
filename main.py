@@ -5,10 +5,11 @@ import torchvision
 from torch.optim.lr_scheduler import StepLR
 from torch.utils.data.sampler import SubsetRandomSampler
 from torch import nn
-from dataset import HandDataset
+from dataset import HandDataset, IMG_SIZE
 from network import device, Net
 import torch.nn.functional as F
 import matplotlib.pyplot as plt
+import time
 
 
 CSV_NAME = 'HandInfo.csv'
@@ -16,10 +17,10 @@ DATASET_NAME = 'Hands'
 VALIDATION = .2
 TEST = .2
 SHUFFLE = True
-BATCH_SIZE = 32
+BATCH_SIZE = 8
 RANDOM_SEED = 42
 EPOCH = 11
-LR = 0.1
+LR = 0.001
 val_loss_dict = {"x": [], "y": []}
 train_loss_dict = {"x": [], "y": []}
 val_acc_dict = {"x": [], "y": []}
@@ -44,8 +45,8 @@ def main():
 
     criterion = nn.CrossEntropyLoss()
     # optimizer = optim.SGD(net.parameters(), lr=LR, momentum=0.9)
-    # optimizer = optim.Adam(net.parameters(), lr=LR) # 0.0001 - 0.001 - 0.01 - 0.1 - 0.00001
-    optimizer = optim.Adadelta(net.parameters(), lr=LR)  # 0.8 - 0.6 - 0.4
+    optimizer = optim.Adam(net.parameters(), lr=LR) # 0.0001 - 0.001 - 0.01 - 0.1 - 0.00001
+    # optimizer = optim.Adadelta(net.parameters(), lr=LR)  # 0.8 - 0.6 - 0.4
     scheduler = StepLR(optimizer, step_size=1, gamma=0.7)
 
     val_acc, val_loss, _ = test(net, validation_loader, 0)
@@ -61,6 +62,7 @@ def main():
     train_acc_dict['x'].append(0)
     train_acc_dict['y'].append(train_acc)
 
+    start = time.time()
     for epoch in range(1, EPOCH):
         train(net, train_loader, optimizer, epoch)
 
@@ -79,9 +81,13 @@ def main():
 
         scheduler.step()
 
+    end = time.time()
+    res_time = end - start
+    print(res_time)
+
     print('Finished Training')
 
-    plt.title("Optimizer=Adadelta " + "LR=%.1f" % LR)
+    plt.title("Optimizer=Adam " + "LR=%.3f" % LR + " Batch=%d" % BATCH_SIZE + " Image Size= %dx%d" % (IMG_SIZE, IMG_SIZE))
     plt.plot(val_loss_dict['x'], val_loss_dict['y'], label="Validation")
     plt.plot(train_loss_dict['x'], train_loss_dict['y'], label="Train")
     plt.xticks(np.arange(0, 11, 1))
@@ -90,7 +96,7 @@ def main():
     plt.legend()
     plt.show()
 
-    plt.title("Optimizer=Adadelta " + "LR=%.1f" % LR)
+    plt.title("Optimizer=Adam " + "LR=%.3f" % LR + " Batch=%d" % BATCH_SIZE + " Image Size= %dx%d" % (IMG_SIZE, IMG_SIZE))
     plt.plot(val_acc_dict['x'], val_acc_dict['y'], label="Validation")
     plt.plot(train_acc_dict['x'], train_acc_dict['y'], label="Train")
     plt.xticks(np.arange(0, 11, 1))
@@ -101,13 +107,17 @@ def main():
 
     list = [val_loss_dict, train_loss_dict, val_acc_dict, train_acc_dict]
 
-    with open('Optimizer=Adadelta_LR=0.1.txt', 'w') as f:
+    with open('Optimizer=Adam_LR=0.001_Batch=8.txt', 'w') as f:
         for item in list:
             f.write("%s\n" % item)
 
         f.write("BATCH_SIZE=%d\n" % BATCH_SIZE)
         f.write("Loss=nll_loss\n")
         f.write("Validation=%20 Test=%20\n")
+        f.write("Time=%f\n" % res_time)
+        f.write("Avg Time=%f\n" % (res_time / 10))
+
+    print(res_time / 10)
 
 
 def build_train_valid_test_subsets(dataset):
