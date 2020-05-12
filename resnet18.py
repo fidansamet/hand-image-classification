@@ -6,7 +6,7 @@ from torch import nn
 class ResNet18(nn.Module):
     def __init__(self):
         super(ResNet18, self).__init__()
-        self.freeze_convs = ['1.conv2.weight', '1.conv1.weight', '0.conv2.weight', '0.conv1.weight']
+        self.freeze_convs = ['1.conv2.weight', '1.conv1.weight', '0.conv2.weight']
         self.resnet18 = models.resnet18(pretrained=True)
         self.set_parameter_requires_grad()
         num_features = self.resnet18.fc.in_features
