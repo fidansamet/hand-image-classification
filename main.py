@@ -13,18 +13,15 @@ import time
 from sklearn import metrics
 import pandas as pd
 import seaborn as sn
+from resnet18 import ResNet18
 
 
-PART = 2
+RESNET = 1
 CSV_NAME = 'HandInfo.csv'
 DATASET_NAME = 'Hands'
 VALIDATION = .2
 TEST = .2
 SHUFFLE = True
-FEATURE_EXTRACT = True
-"""If feature_extract = False, the model is finetuned and all model parameters are updated.
-If feature_extract = True, only the last layer parameters are updated, the others remain fixed.
-"""
 BATCH_SIZE = 8
 RANDOM_SEED = 42
 EPOCH = 11
@@ -37,37 +34,8 @@ train_times = []
 val_times = []
 
 
-def part1():
-    # CREATE NETWORK
-    net = Net()
-    net.cuda()
-    print('######### Network created #########')
-    print('Architecture:\n', net)
-    train_model(net)
-
-
-def part2():
-    model_ft = models.resnet18(pretrained=True)
-    set_parameter_requires_grad(model_ft, FEATURE_EXTRACT)
-    num_ftrs = model_ft.fc.in_features
-    model_ft.fc = nn.Linear(num_ftrs, len(HandDataset.CLASSES))
-    print(model_ft)
-    train_model(model_ft)
-
-
-def set_parameter_requires_grad(model, feature_extracting):
-    # if feature_extracting:
-    for param in model.parameters():
-        param.requires_grad = False
-
-    for param in model.fc.parameters():
-        param.requires_grad = True
-
-
-def train_model(model):
-
-    # BUILD TRAIN-VALIDATION-TEST SUBSETS
-    train_loader, validation_loader, test_loader = build_train_valid_test_subsets()
+def train_model(model, train_loader, validation_loader, test_loader):
+    model = model.cuda()
 
     # OPTIMIZER AND SCHEDULER
     # optimizer = optim.SGD(net.parameters(), lr=LR, momentum=0.9)
@@ -132,7 +100,7 @@ def get_confusion_matrix(ground_truth, test_result):
 
 def plot_and_write(test_acc):
     # plt.title("Optimizer=Adam " + "LR=%.3f" % LR + " Batch=%d" % BATCH_SIZE + " Image=%dx%d" % (IMG_SIZE, IMG_SIZE))
-    plt.title("NLL Loss with Dropout")
+    plt.title("ResNet-18 Frozen Except FC Layer")
     plt.plot(val_loss_dict['x'], val_loss_dict['y'], label="Validation")
     plt.plot(train_loss_dict['x'], train_loss_dict['y'], label="Train")
     plt.xticks(np.arange(0, 11, 1))
@@ -142,7 +110,7 @@ def plot_and_write(test_acc):
     plt.show()
 
     # plt.title("Optimizer=Adam " + "LR=%.3f" % LR + " Batch=%d" % BATCH_SIZE + " Image=%dx%d" % (IMG_SIZE, IMG_SIZE))
-    plt.title("NLL Loss with Dropout")
+    plt.title("ResNet-18 Frozen Except FC Layer")
     plt.plot(val_acc_dict['x'], val_acc_dict['y'], label="Validation")
     plt.plot(train_acc_dict['x'], train_acc_dict['y'], label="Train")
     plt.xticks(np.arange(0, 11, 1))
@@ -153,7 +121,7 @@ def plot_and_write(test_acc):
 
     list = [val_loss_dict, train_loss_dict, val_acc_dict, train_acc_dict]
 
-    with open('Optimizer=Adam_LR=0.001_Batch=8.txt_ImgSize=64x64_nll_loss_matrix', 'w') as f:
+    with open('ResNet-18_fc_layer', 'w') as f:
         for item in list:
             f.write("%s\n" % item)
 
@@ -202,50 +170,50 @@ def data_loader(dataset, indices):
     return torch.utils.data.DataLoader(dataset, batch_size=BATCH_SIZE, sampler=sampler, num_workers=6)
 
 
-def train(net, train_loader, optimizer, epoch, running_loss = 0.0, examples = 0):
-    # criterion = nn.CrossEntropyLoss()
-    net.train()
+def train(model, train_loader, optimizer, epoch, running_loss=0.0, examples=0):
+    model.train()
     for i, data in enumerate(train_loader, 0):
         # Get inputs and classes
-        # inputs, classes = data['image'].to(device), data['class'].to(device)
-        inputs, classes = data['image'], data['class']
+        inputs, classes = data['image'].to(device), data['class'].to(device)
 
         # Zero the parameter gradients
         optimizer.zero_grad()
 
         # forward + backward + optimize
-        outputs = net(inputs)
-        # loss = F.binary_cross_entropy(outputs, classes)
+        outputs = model(inputs)
+        # loss = loss_criterion(outputs, classes)
         loss = F.nll_loss(outputs, classes)
         loss.backward()
         optimizer.step()
+        running_loss += loss.item()
 
         # Print statistics
-        running_loss += loss.data
         examples += BATCH_SIZE
         print('[%d, %5d] loss: %.7f' % (epoch + 1, i + 1, running_loss / examples))
 
 
-def test(model, validation_loader):
+def test(model, validation_loader, test_loss=0, correct=0):
     ground_truths = []
     test_results = []
     model.eval()
-    test_loss = 0
-    correct = 0
     with torch.no_grad():
         for i, data in enumerate(validation_loader, 0):
-            inputs, classes = data['image'], data['class']
-            # inputs, classes = data['image'].to(device), data['class'].to(device)
+            # Get inputs and classes
+            inputs, classes = data['image'].to(device), data['class'].to(device)
+
             for i in classes.tolist():
                 ground_truths.append(i)
-            output = model(inputs)
-            test_loss += F.nll_loss(output, classes, reduction='sum').item()  # sum up batch loss
-            # test_loss += F.binary_cross_entropy(output, classes, reduction='sum').item()  # sum up batch loss
-            pred = output.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
+
+            outputs = model(inputs)
+            test_loss += F.nll_loss(outputs, classes).item()  # sum up batch loss
+            # test_loss += F.binary_cross_entropy(outputs, classes, reduction='sum').item()  # sum up batch loss
+            # test_loss += loss_criterion(outputs, classes).item()   # sum up batch loss
+            pred = outputs.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
             correct += pred.eq(classes.view_as(pred)).sum().item()
+            # correct += pred.eq(classes.argmax(dim=1, keepdim=True)).sum().item()
+
             for i in pred.tolist():
                 test_results.append(i[0])
-            # correct += pred.eq(classes.argmax(dim=1, keepdim=True)).sum().item()
 
     test_loss /= len(validation_loader.sampler.indices)
     test_acc = 100. * correct / len(validation_loader.sampler.indices)
@@ -258,7 +226,15 @@ def test(model, validation_loader):
 
 
 if __name__ == '__main__':
-    if PART == 1:
-        part1()
+    # BUILD TRAIN-VALIDATION-TEST SUBSETS
+    train_loader, validation_loader, test_loader = build_train_valid_test_subsets()
+
+    if RESNET:
+        net = ResNet18()
     else:
-        part2()
+        net = Net()
+
+    print('######### Network created #########')
+    print('Architecture:\n', net)
+    # loss_criterion = nn.CrossEntropyLoss()
+    train_model(net, train_loader, validation_loader, test_loader)

@@ -2,12 +2,10 @@ import torch
 import torchvision.transforms as transforms
 import pandas as pd
 from PIL import Image
-import matplotlib.pyplot as plt
 import numpy as np
-from sklearn.metrics import confusion_matrix
 
 
-IMG_SIZE = 64   # 128
+IMG_SIZE = 64
 
 transform = transforms.Compose([
     transforms.Resize((IMG_SIZE, IMG_SIZE)),
