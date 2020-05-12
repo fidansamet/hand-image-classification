@@ -1,7 +1,7 @@
 import torch
 import torch.optim as optim
 import numpy as np
-import torchvision
+import torchvision.models as models
 from torch.optim.lr_scheduler import StepLR
 from torch.utils.data.sampler import SubsetRandomSampler
 from torch import nn
@@ -15,11 +15,16 @@ import pandas as pd
 import seaborn as sn
 
 
+PART = 2
 CSV_NAME = 'HandInfo.csv'
 DATASET_NAME = 'Hands'
 VALIDATION = .2
 TEST = .2
 SHUFFLE = True
+FEATURE_EXTRACT = True
+"""If feature_extract = False, the model is finetuned and all model parameters are updated.
+If feature_extract = True, only the last layer parameters are updated, the others remain fixed.
+"""
 BATCH_SIZE = 8
 RANDOM_SEED = 42
 EPOCH = 11
@@ -32,77 +37,100 @@ train_times = []
 val_times = []
 
 
-
-def main():
-    # BUILD DATASET
-    dataset = HandDataset(DATASET_NAME, CSV_NAME)
-    print('######### Dataset class created #########')
-    print('Number of images: ', len(dataset))
-
-    # BUILD TRAIN-VALIDATION-TEST SUBSETS
-    train_loader, validation_loader, test_loader = build_train_valid_test_subsets(dataset)
-
+def part1():
     # CREATE NETWORK
     net = Net()
     net.cuda()
     print('######### Network created #########')
     print('Architecture:\n', net)
+    train_model(net)
 
-    # TRAIN AND VALIDATE
+
+def part2():
+    model_ft = models.resnet18(pretrained=True)
+    set_parameter_requires_grad(model_ft, FEATURE_EXTRACT)
+    num_ftrs = model_ft.fc.in_features
+    model_ft.fc = nn.Linear(num_ftrs, len(HandDataset.CLASSES))
+    print(model_ft)
+    train_model(model_ft)
+
+
+def set_parameter_requires_grad(model, feature_extracting):
+    # if feature_extracting:
+    for param in model.parameters():
+        param.requires_grad = False
+
+    for param in model.fc.parameters():
+        param.requires_grad = True
+
+
+def train_model(model):
+
+    # BUILD TRAIN-VALIDATION-TEST SUBSETS
+    train_loader, validation_loader, test_loader = build_train_valid_test_subsets()
+
+    # OPTIMIZER AND SCHEDULER
     # optimizer = optim.SGD(net.parameters(), lr=LR, momentum=0.9)
-    optimizer = optim.Adam(net.parameters(), lr=LR) # 0.0001 - 0.001 - 0.01 - 0.1 - 0.00001
     # optimizer = optim.Adadelta(net.parameters(), lr=LR)  # 0.8 - 0.6 - 0.4
+    optimizer = optim.Adam(model.parameters(), lr=LR)  # 0.0001 - 0.001 - 0.01 - 0.1 - 0.00001
     scheduler = StepLR(optimizer, step_size=1, gamma=0.7)
 
-    val_acc, val_loss, _, _, _ = test(net, validation_loader)
-    train_acc, train_loss, _, _, _ = test(net, train_loader)
+    val_acc, val_loss, _, _ = test(model, validation_loader)
+    train_acc, train_loss, _, _ = test(model, train_loader)
 
-    val_loss_dict['x'].append(0)
-    val_loss_dict['y'].append(val_loss)
-    train_loss_dict['x'].append(0)
-    train_loss_dict['y'].append(train_loss)
+    val_loss_dict['x'].append(0), val_loss_dict['y'].append(val_loss)
+    train_loss_dict['x'].append(0), train_loss_dict['y'].append(train_loss)
 
-    val_acc_dict['x'].append(0)
-    val_acc_dict['y'].append(val_acc)
-    train_acc_dict['x'].append(0)
-    train_acc_dict['y'].append(train_acc)
+    val_acc_dict['x'].append(0), val_acc_dict['y'].append(val_acc)
+    train_acc_dict['x'].append(0), train_acc_dict['y'].append(train_acc)
 
+    # TRAIN AND VALIDATE
     for epoch in range(1, EPOCH):
         train_start = time.time()
-        train(net, train_loader, optimizer, epoch)
+        train(model, train_loader, optimizer, epoch)
         train_end = time.time()
-        train_times.append(train_end-train_start)
+        train_times.append(train_end - train_start)
 
         val_start = time.time()
-        val_acc, val_loss, _, _, _ = test(net, validation_loader)
+        val_acc, val_loss, _, _ = test(model, validation_loader)
         val_end = time.time()
-        val_times.append(val_end-val_start)
+        val_times.append(val_end - val_start)
 
-        train_acc, train_loss, _, _, _ = test(net, train_loader)
+        train_acc, train_loss, _, _ = test(model, train_loader)
 
-        val_loss_dict['x'].append(epoch)
-        val_loss_dict['y'].append(val_loss)
-        train_loss_dict['x'].append(epoch)
-        train_loss_dict['y'].append(train_loss)
+        val_loss_dict['x'].append(epoch), val_loss_dict['y'].append(val_loss)
+        train_loss_dict['x'].append(epoch), train_loss_dict['y'].append(train_loss)
 
-        val_acc_dict['x'].append(epoch)
-        val_acc_dict['y'].append(val_acc)
-        train_acc_dict['x'].append(epoch)
-        train_acc_dict['y'].append(train_acc)
+        val_acc_dict['x'].append(epoch), val_acc_dict['y'].append(val_acc)
+        train_acc_dict['x'].append(epoch), train_acc_dict['y'].append(train_acc)
 
         scheduler.step()
 
-    test_acc, test_loss, _, ground_truths, test_results = test(net, test_loader)
+    test_acc, test_loss, ground_truths, test_results = test(model, test_loader)
     print(test_acc)
-    conf_mat = get_confusion_matrix(ground_truths, test_results)
+    get_confusion_matrix(ground_truths, test_results)
+    plot_and_write(test_acc)
+    print('Finished Training')
+
+
+def get_confusion_matrix(ground_truth, test_result):
+
+    score = metrics.accuracy_score(ground_truth, test_result)
+    # cls_report = metrics.classification_report(ground_truth, test_result)
+    conf_mat = metrics.confusion_matrix(ground_truth, test_result)
+
+    print('Accuracy: {:.3f}'.format(score))
+    # print(cls_report)
+    print(conf_mat)
+
     df_cm = pd.DataFrame(conf_mat, range(8), range(8))
     plt.figure(figsize=(10, 7))
     sn.heatmap(df_cm, annot=True, fmt='d', cmap=plt.get_cmap('jet'))  # font size
     plt.title("Confusion Matrix")
     plt.show()
 
-    print('Finished Training')
 
+def plot_and_write(test_acc):
     # plt.title("Optimizer=Adam " + "LR=%.3f" % LR + " Batch=%d" % BATCH_SIZE + " Image=%dx%d" % (IMG_SIZE, IMG_SIZE))
     plt.title("NLL Loss with Dropout")
     plt.plot(val_loss_dict['x'], val_loss_dict['y'], label="Validation")
@@ -141,26 +169,17 @@ def main():
         for item in val_times:
             f.write("%f " % item)
 
-        f.write("Validation Time=%f\n" % (sum(val_times)/len(val_times)))
+        f.write("Validation Time=%f\n" % (sum(val_times) / len(val_times)))
         f.write("Test accuracy=%f\n" % test_acc)
 
-    print("Avg time: ")
 
+def build_train_valid_test_subsets():
 
-def get_confusion_matrix(ground_truth, test_result):
+    # BUILD DATASET
+    dataset = HandDataset(DATASET_NAME, CSV_NAME)
+    print('######### Dataset class created #########')
+    print('Number of images: ', len(dataset))
 
-    score = metrics.accuracy_score(ground_truth, test_result)
-    # cls_report = metrics.classification_report(ground_truth, test_result)
-    conf_mat = metrics.confusion_matrix(ground_truth, test_result)
-
-    print('Accuracy: {:.3f}'.format(score))
-    # print(cls_report)
-    print(conf_mat)
-
-    return conf_mat
-
-
-def build_train_valid_test_subsets(dataset):
     dataset_size = len(dataset)
     indices = list(range(dataset_size))
     validation_split = int(np.floor(VALIDATION * dataset_size))
@@ -188,7 +207,8 @@ def train(net, train_loader, optimizer, epoch, running_loss = 0.0, examples = 0)
     net.train()
     for i, data in enumerate(train_loader, 0):
         # Get inputs and classes
-        inputs, classes = data['image'].to(device), data['class'].to(device)
+        # inputs, classes = data['image'].to(device), data['class'].to(device)
+        inputs, classes = data['image'], data['class']
 
         # Zero the parameter gradients
         optimizer.zero_grad()
@@ -206,18 +226,19 @@ def train(net, train_loader, optimizer, epoch, running_loss = 0.0, examples = 0)
         print('[%d, %5d] loss: %.7f' % (epoch + 1, i + 1, running_loss / examples))
 
 
-def test(net, validation_loader):
+def test(model, validation_loader):
     ground_truths = []
     test_results = []
-    net.eval()
+    model.eval()
     test_loss = 0
     correct = 0
     with torch.no_grad():
         for i, data in enumerate(validation_loader, 0):
-            inputs, classes = data['image'].to(device), data['class'].to(device)
+            inputs, classes = data['image'], data['class']
+            # inputs, classes = data['image'].to(device), data['class'].to(device)
             for i in classes.tolist():
                 ground_truths.append(i)
-            output = net(inputs)
+            output = model(inputs)
             test_loss += F.nll_loss(output, classes, reduction='sum').item()  # sum up batch loss
             # test_loss += F.binary_cross_entropy(output, classes, reduction='sum').item()  # sum up batch loss
             pred = output.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
@@ -233,8 +254,11 @@ def test(net, validation_loader):
         test_loss, correct, len(validation_loader.sampler.indices),
         test_acc))
 
-    return test_acc, test_loss, correct, ground_truths, test_results
+    return test_acc, test_loss, ground_truths, test_results
 
 
 if __name__ == '__main__':
-    main()
+    if PART == 1:
+        part1()
+    else:
+        part2()
