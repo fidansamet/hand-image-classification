@@ -1,20 +1,17 @@
 import torch
 import torch.optim as optim
 import numpy as np
-import torchvision.models as models
-from torch.optim.lr_scheduler import StepLR
-from torch.utils.data.sampler import SubsetRandomSampler
-from torch import nn
-from dataset import HandDataset, IMG_SIZE
-from network import device, Net
 import torch.nn.functional as F
 import matplotlib.pyplot as plt
 import time
-from sklearn import metrics
 import pandas as pd
 import seaborn as sn
+from torch.optim.lr_scheduler import StepLR
+from torch.utils.data.sampler import SubsetRandomSampler
+from dataset import HandDataset
+from mynet import MyNet
+from sklearn import metrics
 from resnet18 import ResNet18
-
 
 RESNET = 1
 CSV_NAME = 'HandInfo.csv'
@@ -26,6 +23,8 @@ BATCH_SIZE = 8
 RANDOM_SEED = 42
 EPOCH = 11
 LR = 0.001
+DEVICE = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')     # Check cuda, if cuda gpu, if not cpu
+
 val_loss_dict = {"x": [], "y": []}
 train_loss_dict = {"x": [], "y": []}
 val_acc_dict = {"x": [], "y": []}
@@ -39,8 +38,8 @@ def train_model(model, train_loader, validation_loader, test_loader):
 
     # OPTIMIZER AND SCHEDULER
     # optimizer = optim.SGD(net.parameters(), lr=LR, momentum=0.9)
-    # optimizer = optim.Adadelta(net.parameters(), lr=LR)  # 0.8 - 0.6 - 0.4
-    optimizer = optim.Adam(model.parameters(), lr=LR)  # 0.0001 - 0.001 - 0.01 - 0.1 - 0.00001
+    # optimizer = optim.Adadelta(net.parameters(), lr=LR)
+    optimizer = optim.Adam(model.parameters(), lr=LR)
     scheduler = StepLR(optimizer, step_size=1, gamma=0.7)
 
     val_acc, val_loss, _, _ = test(model, validation_loader)
@@ -99,8 +98,7 @@ def get_confusion_matrix(ground_truth, test_result):
 
 
 def plot_and_write(test_acc):
-    # plt.title("Optimizer=Adam " + "LR=%.3f" % LR + " Batch=%d" % BATCH_SIZE + " Image=%dx%d" % (IMG_SIZE, IMG_SIZE))
-    plt.title("ResNet-18 Frozen Except FC Layer")
+    plt.title("ResNet-18, layer4")
     plt.plot(val_loss_dict['x'], val_loss_dict['y'], label="Validation")
     plt.plot(train_loss_dict['x'], train_loss_dict['y'], label="Train")
     plt.xticks(np.arange(0, 11, 1))
@@ -109,8 +107,7 @@ def plot_and_write(test_acc):
     plt.legend()
     plt.show()
 
-    # plt.title("Optimizer=Adam " + "LR=%.3f" % LR + " Batch=%d" % BATCH_SIZE + " Image=%dx%d" % (IMG_SIZE, IMG_SIZE))
-    plt.title("ResNet-18 Frozen Except FC Layer")
+    plt.title("ResNet-18, layer4")
     plt.plot(val_acc_dict['x'], val_acc_dict['y'], label="Validation")
     plt.plot(train_acc_dict['x'], train_acc_dict['y'], label="Train")
     plt.xticks(np.arange(0, 11, 1))
@@ -121,7 +118,7 @@ def plot_and_write(test_acc):
 
     list = [val_loss_dict, train_loss_dict, val_acc_dict, train_acc_dict]
 
-    with open('ResNet-18_fc_layer', 'w') as f:
+    with open('ResNet-18_layer4', 'w') as f:
         for item in list:
             f.write("%s\n" % item)
 
@@ -174,7 +171,7 @@ def train(model, train_loader, optimizer, epoch, running_loss=0.0, examples=0):
     model.train()
     for i, data in enumerate(train_loader, 0):
         # Get inputs and classes
-        inputs, classes = data['image'].to(device), data['class'].to(device)
+        inputs, classes = data['image'].to(DEVICE), data['class'].to(DEVICE)
 
         # Zero the parameter gradients
         optimizer.zero_grad()
@@ -199,7 +196,7 @@ def test(model, validation_loader, test_loss=0, correct=0):
     with torch.no_grad():
         for i, data in enumerate(validation_loader, 0):
             # Get inputs and classes
-            inputs, classes = data['image'].to(device), data['class'].to(device)
+            inputs, classes = data['image'].to(DEVICE), data['class'].to(DEVICE)
 
             for i in classes.tolist():
                 ground_truths.append(i)
@@ -232,9 +229,8 @@ if __name__ == '__main__':
     if RESNET:
         net = ResNet18()
     else:
-        net = Net()
+        net = MyNet()
 
     print('######### Network created #########')
     print('Architecture:\n', net)
-    # loss_criterion = nn.CrossEntropyLoss()
     train_model(net, train_loader, validation_loader, test_loader)

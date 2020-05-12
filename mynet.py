@@ -3,14 +3,9 @@ import torch
 from torch import nn
 
 
-# Check cuda, if cuda gpu, if not cpu
-use_cuda = torch.cuda.is_available()
-device = torch.device('cuda:0' if use_cuda else 'cpu')
-
-
-class Net(nn.Module):
+class MyNet(nn.Module):
     def __init__(self):
-        super(Net, self).__init__()
+        super(MyNet, self).__init__()
         self.conv1 = nn.Conv2d(3, 32, 3, 1)
         self.conv2 = nn.Conv2d(32, 64, 3, 1)
         self.dropout1 = nn.Dropout2d(0.25)

@@ -2,12 +2,9 @@ import torch
 import torchvision.transforms as transforms
 import pandas as pd
 from PIL import Image
-import numpy as np
-
 
 IMG_SIZE = 64
-
-transform = transforms.Compose([
+TRANSFORM = transforms.Compose([
     transforms.Resize((IMG_SIZE, IMG_SIZE)),
     transforms.ToTensor(),
     transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
@@ -19,7 +16,7 @@ class HandDataset(torch.utils.data.Dataset):
     CLASSES = ('female-dorsal-right', 'female-dorsal-left', 'female-palmar-left', 'female-palmar-right',
                'male-dorsal-right', 'male-dorsal-left', 'male-palmar-left', 'male-palmar-right')
 
-    def __init__(self, root_dir, csv_file, transform=transform):
+    def __init__(self, root_dir, csv_file, transform=TRANSFORM):
         self.ground_truth = pd.read_csv(csv_file)
         self.root_dir = root_dir
         self.files = []
@@ -55,6 +52,3 @@ class HandDataset(torch.utils.data.Dataset):
         split_aspects.insert(0, gender)
         class_name = '-'.join(split_aspects)
         return self.CLASSES.index(class_name)
-
-
-
