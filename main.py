@@ -13,7 +13,7 @@ from mynet import MyNet
 from sklearn import metrics
 from resnet18 import ResNet18
 
-RESNET = 1
+RESNET = 0
 CSV_NAME = 'HandInfo.csv'
 DATASET_NAME = 'Hands'
 VALIDATION = .2
@@ -98,7 +98,7 @@ def get_confusion_matrix(ground_truth, test_result):
 
 
 def plot_and_write(test_acc):
-    plt.title("ResNet-18, layer4")
+    # plt.title("dropout1=0.25 dropout2=0.75")
     plt.plot(val_loss_dict['x'], val_loss_dict['y'], label="Validation")
     plt.plot(train_loss_dict['x'], train_loss_dict['y'], label="Train")
     plt.xticks(np.arange(0, 11, 1))
@@ -107,7 +107,7 @@ def plot_and_write(test_acc):
     plt.legend()
     plt.show()
 
-    plt.title("ResNet-18, layer4")
+    # plt.title("dropout1=0.25 dropout2=0.75")
     plt.plot(val_acc_dict['x'], val_acc_dict['y'], label="Validation")
     plt.plot(train_acc_dict['x'], train_acc_dict['y'], label="Train")
     plt.xticks(np.arange(0, 11, 1))
@@ -115,27 +115,6 @@ def plot_and_write(test_acc):
     plt.ylabel('Accuracy')
     plt.legend()
     plt.show()
-
-    list = [val_loss_dict, train_loss_dict, val_acc_dict, train_acc_dict]
-
-    with open('ResNet-18_layer4', 'w') as f:
-        for item in list:
-            f.write("%s\n" % item)
-
-        f.write("BATCH_SIZE=%d\n" % BATCH_SIZE)
-        f.write("Loss=nll_loss\n")
-        f.write("Validation=%20 Test=%20\n\n")
-
-        for item in train_times:
-            f.write("%f " % item)
-
-        f.write("Train Time=%f\n\n" % sum(train_times))
-
-        for item in val_times:
-            f.write("%f " % item)
-
-        f.write("Validation Time=%f\n" % (sum(val_times) / len(val_times)))
-        f.write("Test accuracy=%f\n" % test_acc)
 
 
 def build_train_valid_test_subsets():
@@ -173,10 +152,10 @@ def train(model, train_loader, optimizer, epoch, running_loss=0.0, examples=0):
         # Get inputs and classes
         inputs, classes = data['image'].to(DEVICE), data['class'].to(DEVICE)
 
-        # Zero the parameter gradients
+        # Zero parameter gradients
         optimizer.zero_grad()
 
-        # forward + backward + optimize
+        # forward, backward, optimize
         outputs = model(inputs)
         # loss = loss_criterion(outputs, classes)
         loss = F.nll_loss(outputs, classes)
